@@ -95,7 +95,7 @@ class Manager:
 
     def suggestNextStep(self):
 
-        if self.suggestedButton is not None:
+        if self.suggestedButton is not None and self.suggestedButton.button.isEnabled():
             self.suggestedButton.button.setStyleSheet('QPushButton {background-color: white;}')
 
         while True:
