@@ -1,4 +1,4 @@
-:- module(utils, [write_field/1, write_field/2, draw/0]).
+:- module(utils, [write_field/1, write_field/2, draw/0, get_sublist/3, in_all_lists/2]).
 
 % Wypisz pole
 write_field([X,Y]) :- write("["), write(X), write(","), write(Y), write("]").
@@ -17,3 +17,13 @@ draw(X,Y) :-
 draw(X,_) :-
 	write('\n'), Xnext is X + 1, in_range(x,Xnext), Ynext is 1, draw(Xnext,Ynext).
 draw(_,_).
+
+% Pobiera możliwe podlisty (o długości co najmniej 2), gdzie kolejność nie ma znaczenia ([a,b] <=> [b,a])
+get_sublist([],_,[]).
+get_sublist([X|T], 2, [X,Y]) :- select(Y,T,_).
+get_sublist([X|T], N, [X|L]) :- N1 is N - 1, get_sublist(T, N1, L), L \= [].
+get_sublist([_|T], N, L) :- get_sublist(T,N,L), L \= [].
+
+% Pobiera element, który znajduje się w każdej liście
+in_all_lists([],_).
+in_all_lists([H|T], X) :- member(X,H), in_all_lists(T,X).

@@ -1,5 +1,7 @@
 :- module(external, [external_knowledge/2]).
 
+:- dynamic external_knowledge/2.
+
 % Zewnętrzna wiedza (docelowo np. Python)
 external_knowledge([1,1],1).
 external_knowledge([1,2],2).
