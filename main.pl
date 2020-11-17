@@ -73,10 +73,10 @@ satisfy(_,V,M,H,HL) :-
 % a) brakuje tylko jednej miny -> może jest tylko jedno możliwe miejsce na tą minę?
 % ?czy taka sytuacja jest w ogóle możliwa?
 satisfy(F,V,M,_,HL) :-
-	1 is V - M, findall(L, (select(L,HL,_), try_assert_mines(L)), ML), possible_mines(F,ML).
+	1 is V - M, findall(L, get_fields(F,FL), (select(L,HL,_), try_assert_mines(L, FL)), ML), possible_mines(F,ML).
 % b) brakuje kilku min -> może da się zawęzić liczbę możliwych miejsc do ilości min?
 satisfy(F,V,M,_,HL) :-
-	MR is V - M, MR > 1, get_fields(F,FL), findall(L, (get_sublist(HL,MR,L), try_assert_mines2(L,FL)), ML), possible_mines(F,ML).
+	MR is V - M, MR > 1, get_fields(F,FL), findall(L, (get_sublist(HL,MR,L), try_assert_mines(L,FL)), ML), possible_mines(F,ML).
 
 % Sprawdzenie możliwego rozmieszczenia min dla podanego pola
 % 0. nie można ustawić min
