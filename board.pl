@@ -1,13 +1,19 @@
-:- module(board, [board_size/2, in_range/2, in_board/1, adjacent/2]).
+:- module(board, [board_size/2, board_mines/1, in_range/2, in_board/1, adjacent/2]).
 
 :- dynamic board_size/2.
+:- dynamic board_mines/1.
 
 default_max(x, 5).
 default_max(y, 5).
 
+default_mines(100).
+
 range(x, 1, Xmax) :- board_size(Xmax, _), !.
 range(y, 1, Ymax) :- board_size(_, Ymax), !.
 range(Axis, 1, Max) :- default_max(Axis, Max), !.
+
+max_mines(X) :- board_mines(X), !.
+max_mines(X) :- default_mines(X), !.
 
 % Walidacja polozenia
 in_range(Axe, X) :- range(Axe, Max, Min), X >= Max, X =< Min.

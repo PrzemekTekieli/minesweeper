@@ -125,7 +125,7 @@ class Manager:
 
         marked_bombs = []
 
-        resultList = json.loads(str(list(prolog.query("next_step(Fields,Mines)"))).replace("'", '"'))
+        resultList = json.loads(str(list(prolog.query("next_step(Fields,Mines,Knowledge)"))).replace("'", '"'))
         if(len(resultList)==0):
             return
         result = resultList[0]
@@ -133,7 +133,7 @@ class Manager:
         marked_bombs += result['Mines']
 
         while (len(result['Fields']) == 0):
-            resultList = json.loads(str(list(prolog.query("next_step(Fields,Mines)"))).replace("'", '"'))
+            resultList = json.loads(str(list(prolog.query("next_step(Fields,Mines,Knowledge)"))).replace("'", '"'))
             if(len(resultList)==0):
                 return
             result = resultList[0]

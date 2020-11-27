@@ -1,4 +1,4 @@
-:- module(algorithm, [satisfy_fields/2]).
+:- module(algorithm, [satisfy_fields/2,search_anyfield/1]).
 
 % Zlicz miny w sąsiedztwie
 count_mines(F1, N) :-
@@ -19,6 +19,9 @@ get_fields(F1,L) :-
 % Oznacz listę pól jako miny
 mark_mines([]).
 mark_mines([F|T]) :- retract(hidden(F)), assertz(mine(F)), write_field(F,m), mark_mines(T).
+
+% Odkryj jakiekolwiek wolne pole
+search_anyfield(Field) :- hidden(Field).
 
 % Sprawdź zależność pola. Szukamy tylko pól które mają co najmniej jednego nieodkrytego sąsiada
 satisfy_fields(Fields,Mines) :- 
@@ -48,8 +51,9 @@ possible_mines(_,ML,[X]) :- in_all_lists(ML,X), X \= [], mark_mines([X]).
 
 % Sprawdzenie czy wstawienie min w dane miejsca z listy, nie sprawi że limit min obok któregokolwiek pola zostanie przekroczony. Dodatkowo sprawdza czy po takiej operacji, każdy z elementów podanej listy pól ma szansę mieć jakiekolwiek rozwiązanie.
 try_place_mines([],[]).
-try_place_mines([],[F|T]) :- field(F,V), count_mines(F,M), 0 is V - M, try_place_mines([],T).
-try_place_mines([],[F|T]) :- field(F,V), count_mines(F,M), 0 < V - M, get_hidden(F,HL), try_place_mines(HL,T).
+try_place_mines([],[F|T]) :- field(F,V), count_mines(F,M), MR is V - M, 0 is MR, try_place_mines([],T).
+try_place_mines([],[F|T]) :- field(F,V), count_mines(F,M), MR is V - M, 1 is MR, get_hidden(F,HL), select(L,HL,_), try_place_mines(L,T).
+try_place_mines([],[F|T]) :- field(F,V), count_mines(F,M), MR is V - M, MR > 1, get_hidden(F,HL), get_sublist(HL,MR,L), try_place_mines(L,T).
 try_place_mines([F|T],L) :-
 	assertz(mine(F)), (\+ check_global_condition, try_place_mines(T,L), retract(mine(F))); retract(mine(F)), false.
 
