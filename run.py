@@ -7,6 +7,7 @@ import time
 import json
 import random
 import sys
+import itertools
 
 prolog = Prolog()
 prolog.consult("main.pl")
@@ -16,6 +17,8 @@ width = 30
 height = 20
 p =  0.1
 mode = 0
+bombs_amount = 80
+total_knowledge_mode = False
 
 colorDict = {0:"black", 1:"blue", 2:"green", 3:"red", 4: "darkblue", 5:"brown", 6:"cyan", 7:"black", 8:"darkred"}
 
@@ -25,13 +28,16 @@ class ButtonWrapper:
     def __init__(self, widget, x, y, isBomb, observer):
         self.x = x
         self.y = y
-        self.isBomb = random.random() < p
+        self.isBomb = False
         self.button = QPushButton(widget)
         self.button.setFixedHeight(button_size)
         self.button.setFixedWidth(button_size)
         self.button.move(y*button_size,x*button_size)
         self.button.clicked.connect(self.callback)
         self.observer = observer
+
+    def placeBomb(self):
+        self.isBomb = True
 
     def callback(self):
         self.button.setEnabled(False)
@@ -49,7 +55,7 @@ class Worker(QRunnable):
 
     @pyqtSlot()
     def run(self):
-        time.sleep(1)
+        time.sleep(0.5)
         global mode
         if(mode == 1):
             self.suggestedButton.button.click()  
@@ -61,15 +67,13 @@ class Manager:
         self.buttons = [[ButtonWrapper(widget, i, j, False, self) for i in range(height+1)] for j in range(width+1)]
         self.knowledgeList = []
         self.totalKnowledgeList = []
-        self.bombs = []
         self.suggestingLockingButton = None
         self.suggestedButton = None
         self.threadpool = QThreadPool()
 
-        for l in self.buttons:
-            for b in l:
-                if b.isBomb:
-                    self.bombs.append(b)
+        self.bombs = random.sample(list(itertools.chain.from_iterable(self.buttons)), bombs_amount)
+        for button in self.bombs:
+            button.placeBomb()
 
     def notify(self, buttonWrapper):
         if(buttonWrapper.isBomb) :
@@ -101,6 +105,7 @@ class Manager:
             if cnt != 0:
                 buttonWrapper.button.setText(str(cnt))  
             else:
+                buttonWrapper.button.setText('')
                 self.clickNeighbourhood(buttonWrapper)
             
             if self.suggestingLockingButton == buttonWrapper:
@@ -120,36 +125,64 @@ class Manager:
 
     def suggestNextStep(self):
 
+        queryStr = "next_step(Fields,Mines,Knowledge)"
+        if total_knowledge_mode:
+            queryStr = "all_next_steps(Fields,Mines,Knowledge)"
+
         if self.suggestedButton is not None and self.suggestedButton.button.isEnabled():
             self.suggestedButton.button.setStyleSheet('QPushButton {background-color: white;}')
 
         marked_bombs = []
 
-        resultList = json.loads(str(list(prolog.query("next_step(Fields,Mines,Knowledge)"))).replace("'", '"'))
+        resultList = json.loads(str(list(prolog.query(queryStr))).replace("'", '"'))
         if(len(resultList)==0):
             return
         result = resultList[0]
         print(result)
-        marked_bombs += result['Mines']
+        k = result['Knowledge'] 
+        for mine in result['Mines']:
+                marked_bombs += [(mine, k)]
 
         while (len(result['Fields']) == 0):
-            resultList = json.loads(str(list(prolog.query("next_step(Fields,Mines,Knowledge)"))).replace("'", '"'))
+            resultList = json.loads(str(list(prolog.query(queryStr))).replace("'", '"'))
             if(len(resultList)==0):
                 return
             result = resultList[0]
             print(result)
-            marked_bombs += result['Mines']
-
-        for coords in marked_bombs:
+            k = result['Knowledge']
+            for mine in result['Mines']:
+                marked_bombs += [(mine, k)]
+        print(marked_bombs)
+        for coords, k in marked_bombs:
             bomb = self.buttons[coords[1]-1][coords[0]-1]
             bomb.button.setStyleSheet('QPushButton {background-color: gray; font-weight: bold; color: red;}')
-            bomb.button.setText("X")
+            if(k == 0): 
+                bomb.button.setText("?")
+            else:
+                bomb.button.setText("X")
+
 
         field = result['Fields'] if type(result['Fields'][0]) is not list else result['Fields'][0]
+        k = result['Knowledge']
         print(field)
         b = self.buttons[field[1]-1][field[0]-1]
-        b.button.setStyleSheet('QPushButton {background-color: red;}')
+        if k == 0:
+            b.button.setStyleSheet('QPushButton {background-color: yellow;}')
+            b.button.setText("?")
+        else:
+            b.button.setStyleSheet('QPushButton {background-color: red;}')
+            b.button.setText('')
         self.suggestedButton = b
+
+        if total_knowledge_mode and type(result['Fields'][0]) is list and len(result['Fields']) > 1:
+            for f in result['Fields'][1:len(result['Fields'])-1]:
+                b1 = self.buttons[f[1]-1][f[0]-1]
+                if k == 0:
+                    b1.button.setStyleSheet('QPushButton {background-color: yellow;}')
+                    b1.button.setText("?")
+                else:
+                    b1.button.setStyleSheet('QPushButton {background-color: red;}')
+                    b1.button.setText('')
 
         if mode == 1:
             worker = Worker(self.suggestedButton)
@@ -190,14 +223,34 @@ class PlayModeButtonWrapper:
             if(self.manager.suggestedButton is not None):
                 self.manager.suggestedButton.button.click()
         print(mode)
+
+
+class PlayModeKnowledgeButtonWrapper:
+
+    def __init__(self, widget, manager, h, w):
+        self.button = QPushButton(widget)
+        self.button.setFixedHeight(2*button_size)
+        self.button.setFixedWidth(10*button_size)
+        self.button.move(w,h)
+        self.button.setText('SHOW ALL SUGGESTED')
+        self.button.clicked.connect(self.callback)
+        self.manager = manager
+
+    def callback(self):
+        global total_knowledge_mode
+        if total_knowledge_mode:
+            total_knowledge_mode = False
+        else:
+            total_knowledge_mode = True
           
 def window():
    app = QApplication(sys.argv)
    widget = QWidget()
-   list(prolog.query(f"start({height},{width})"))
+   list(prolog.query(f"start({height+1},{width+1},{bombs_amount})"))
    
    manager = Manager(widget)
-   modeButton = PlayModeButtonWrapper(widget, manager, (height + 1) * button_size, ((width - 1) * button_size) / 2)
+   modeButton = PlayModeButtonWrapper(widget, manager, (height + 1) * button_size, ((width) * button_size) / 3)
+   modeButtonKnowledge = PlayModeKnowledgeButtonWrapper(widget, manager, (height + 1) * button_size, ((width - 4) * button_size) / 2)
 
    widget.resize(button_size*width, button_size*(height+3))
    widget.setWindowTitle("Minesweeper")
