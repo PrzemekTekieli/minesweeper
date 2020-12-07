@@ -1,4 +1,4 @@
-:- module(algorithm, [satisfy_fields/2,search_anyfield/1]).
+:- module(algorithm, [satisfy_fields/2,search_anyfield/1,check_completed/0]).
 
 % Zlicz miny w sąsiedztwie
 count_mines(F1, N) :-
@@ -8,22 +8,23 @@ count_mines(F1, N) :-
 count_hidden(F1, N) :-
 	aggregate_all(count, (adjacent(F1,F2), hidden(F2)), N).
 
-% Pobierz listę nieodkrytych pól w sąsiedztwie
+% Pobierz listę nieodkrytych pól w sąsiedztwie (sprawdzając czy nie ma tam tymczasowej miny)
 get_hidden(F1,L) :-
-	findall(F2, (adjacent(F1,F2), hidden(F2)), L).
+	findall(F2, (adjacent(F1,F2), hidden(F2), \+ mine(F2)), L).
 	
-% Pobierz listę odkrytych pól (nie będących minami) w sąsiedztwie
+% Pobierz listę odkrytych pól (nie będących minami) w sąsiedztwie (nie pobiera pól "completed")
 get_fields(F1,L) :-
 	findall(F2, (adjacent(F1,F2), field(F2,_)), L).
-	
-% Oznacz listę pól jako miny
-mark_mines([]).
-mark_mines([F|T]) :- retract(hidden(F)), assertz(mine(F)), write_field(F,m), mark_mines(T).
 
 % Odkryj jakiekolwiek wolne pole
 search_anyfield(Field) :- hidden(Field).
 
-% Sprawdź zależność pola. Szukamy tylko pól które mają co najmniej jednego nieodkrytego sąsiada
+% Szukamy pól, które mają odryktych wszystkich sąsiadów i zamieniamy je z "field" na "completed"
+check_completed :-
+	field(F,V), count_hidden(F,H), H = 0, mark_completed(F,V), fail.
+check_completed.
+
+% Sprawdź zależność pola. Szukamy tylko pól które mają co najmniej jednego nieodkrytego sąsiada, 
 satisfy_fields(Fields,Mines) :- 
 	field(F,V), count_hidden(F,H), H \= 0, count_mines(F,M), get_hidden(F,HL), satisfy(F,V,M,H,HL,Fields,Mines).
 % 1. znaleziono już wszystkie miny w okolicy danego pola -> odkryj wszystkich nieodkrytych sąsiadów
@@ -31,7 +32,7 @@ satisfy(_,V,M,_,HL,Fields,[]) :-
 	V = M, Fields = HL.%, search_fields(HL). 
 % 2. liczba brakujących min jest równa liczbie nieodkrytych sąsiadów -> załóż że nieodkryci sąsiedzi to miny
 satisfy(_,V,M,H,HL,[],Mines) :-
-	V is M + H, mark_mines(HL), Mines = HL.
+	V is M + H, Mines = HL.
 % 3. liczba brakujących min jest mniejsza niż liczba nieodkrytych sąsiadów -> próba zawężenia możliwych rozmieszczeń min
 % a) brakuje tylko jednej miny -> może jest tylko jedno możliwe miejsce na tą minę?
 % ?czy taka sytuacja jest w ogóle możliwa?
@@ -45,9 +46,9 @@ satisfy(F,V,M,_,HL,[],Mines) :-
 % 0. nie można ustawić min
 possible_mines(_,[],[]) :- false.
 % 1. miny można rozmieścić w tylko jeden sposób -> rozmieść miny w podany sposób
-possible_mines(_,[M|[]],M) :- mark_mines(M).
+possible_mines(_,[M|[]],M).
 % 2. jedno z pól zawiera minę w każdym możliwym rozmieszczeniu -> zaznacz że jest tam mina
-possible_mines(_,ML,[X]) :- in_all_lists(ML,X), X \= [], mark_mines([X]).
+possible_mines(_,ML,[X]) :- in_all_lists(ML,X), X \= [].
 
 % Sprawdzenie czy wstawienie min w dane miejsca z listy, nie sprawi że limit min obok któregokolwiek pola zostanie przekroczony. Dodatkowo sprawdza czy po takiej operacji, każdy z elementów podanej listy pól ma szansę mieć jakiekolwiek rozwiązanie.
 try_place_mines([],[]).

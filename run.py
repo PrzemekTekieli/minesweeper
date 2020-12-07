@@ -11,7 +11,6 @@ import itertools
 
 prolog = Prolog()
 prolog.consult("main.pl")
-list(prolog.query("start(5,5)"))
 button_size = 20
 width = 30
 height = 20
@@ -55,7 +54,7 @@ class Worker(QRunnable):
 
     @pyqtSlot()
     def run(self):
-        time.sleep(0.5)
+        time.sleep(0.3)
         global mode
         if(mode == 1):
             self.suggestedButton.button.click()  
@@ -64,11 +63,12 @@ class Manager:
 
     def __init__(self, widget):
         self.widget = widget
-        self.buttons = [[ButtonWrapper(widget, i, j, False, self) for i in range(height+1)] for j in range(width+1)]
+        self.buttons = [[ButtonWrapper(widget, i, j, False, self) for i in range(height)] for j in range(width)]
         self.knowledgeList = []
         self.totalKnowledgeList = []
         self.suggestingLockingButton = None
         self.suggestedButton = None
+        self.allSuggestedButtons = []
         self.threadpool = QThreadPool()
 
         self.bombs = random.sample(list(itertools.chain.from_iterable(self.buttons)), bombs_amount)
@@ -90,8 +90,8 @@ class Manager:
             x = buttonWrapper.x
             y = buttonWrapper.y
             cnt = 0
-            for i in range(max(0,x-1), min(height,x+1)+1):
-                for j in range(max(0,y-1), min(width,y+1)+1):
+            for i in range(max(0,x-1), min(height-1,x+1)+1):
+                for j in range(max(0,y-1), min(width-1,y+1)+1):
                     if (i != x or j != y) and self.buttons[j][i].isBomb:
                         cnt = cnt + 1
 
@@ -110,15 +110,39 @@ class Manager:
             
             if self.suggestingLockingButton == buttonWrapper:
                 self.suggestingLockingButton = None
-                self.suggestNextStep()
+                
+                if total_knowledge_mode == True or len(self.allSuggestedButtons) == 0:
+                    self.suggestNextStep()
+                else:
+                    self.getNextAvailableSuggestedButton()
+                    if self.suggestedButton.button.isEnabled() == True:
+                        self.suggestedButton.button.setStyleSheet('QPushButton {background-color: red;}')
+                        self.suggestedButton.button.setText('')
+                        if mode == 1:
+                            worker = Worker(self.suggestedButton)
+                            self.threadpool.start(worker)
+                    else:
+                        self.suggestNextStep()
 
             
+
+    def getNextAvailableSuggestedButton(self):
+        if self.suggestedButton is None:
+            if len(self.allSuggestedButtons) > 0:
+                field = self.allSuggestedButtons.pop(0)
+                b = self.buttons[field[1]-1][field[0]-1]
+                self.suggestedButton = b
+        
+        while (self.suggestedButton.button.isEnabled() == False) and (len(self.allSuggestedButtons) > 0):
+            field = self.allSuggestedButtons.pop(0)
+            b = self.buttons[field[1]-1][field[0]-1]
+            self.suggestedButton = b
 
     def clickNeighbourhood(self, buttonWrapper):
         x = buttonWrapper.x
         y = buttonWrapper.y
-        for i in range(max(0,x-1), min(height,x+1)+1):
-            for j in range(max(0,y-1), min(width,y+1)+1):
+        for i in range(max(0,x-1), min(height-1,x+1)+1):
+            for j in range(max(0,y-1), min(width-1,y+1)+1):
                 if(self.buttons[j][i].button.isEnabled()):
                     self.buttons[j][i].button.click()
 
@@ -129,8 +153,8 @@ class Manager:
         if total_knowledge_mode:
             queryStr = "all_next_steps(Fields,Mines,Knowledge)"
 
-        if self.suggestedButton is not None and self.suggestedButton.button.isEnabled():
-            self.suggestedButton.button.setStyleSheet('QPushButton {background-color: white;}')
+        #if self.suggestedButton is not None and self.suggestedButton.button.isEnabled():
+        #    self.suggestedButton.button.setStyleSheet('QPushButton {background-color: white;}')
 
         marked_bombs = []
 
@@ -167,15 +191,33 @@ class Manager:
         print(field)
         b = self.buttons[field[1]-1][field[0]-1]
         if k == 0:
-            b.button.setStyleSheet('QPushButton {background-color: yellow;}')
-            b.button.setText("?")
+            if total_knowledge_mode == True and len(self.allSuggestedButtons) > 0:
+                self.getNextAvailableSuggestedButton()
+                if self.suggestedButton.button.isEnabled() == False:
+                    b.button.setStyleSheet('QPushButton {background-color: yellow;}')
+                    b.button.setText("?")
+                    self.suggestedButton = b
+            else:
+                b.button.setStyleSheet('QPushButton {background-color: yellow;}')
+                b.button.setText("?")
+                self.suggestedButton = b
+            
         else:
             b.button.setStyleSheet('QPushButton {background-color: red;}')
             b.button.setText('')
-        self.suggestedButton = b
+            
+            self.allSuggestedButtons.append(field)
+            for f in result['Fields'][1:len(result['Fields'])]:
+                self.allSuggestedButtons.append(f)
+            
+            if total_knowledge_mode == True and len(self.allSuggestedButtons) > 0:
+                self.getNextAvailableSuggestedButton()
+            else:
+                self.suggestedButton = b
+            
 
         if total_knowledge_mode and type(result['Fields'][0]) is list and len(result['Fields']) > 1:
-            for f in result['Fields'][1:len(result['Fields'])-1]:
+            for f in result['Fields'][1:len(result['Fields'])]:
                 b1 = self.buttons[f[1]-1][f[0]-1]
                 if k == 0:
                     b1.button.setStyleSheet('QPushButton {background-color: yellow;}')
@@ -246,7 +288,7 @@ class PlayModeKnowledgeButtonWrapper:
 def window():
    app = QApplication(sys.argv)
    widget = QWidget()
-   list(prolog.query(f"start({height+1},{width+1},{bombs_amount})"))
+   list(prolog.query(f"start({height},{width},{bombs_amount})"))
    
    manager = Manager(widget)
    modeButton = PlayModeButtonWrapper(widget, manager, (height + 1) * button_size, ((width) * button_size) / 3)
